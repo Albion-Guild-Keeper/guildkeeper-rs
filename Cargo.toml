@@ -1,0 +1,42 @@
+[workspace]
+members = [
+    "apps/api",
+    "apps/site",
+    "apps/bot",
+    "tools/cli",
+    "libs/core",
+    "libs/sycamore_rstml",
+]
+resolver = "2"
+
+# Dipendenze comuni a tutti i membri del workspace
+[workspace.dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+thiserror = "2.0.12"
+anyhow = "1.0.97"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+config = { version = "0.15.11", features = ["toml"] }
+validator = { version = "0.20.0", features = ["derive"] }
+reqwest ={ version = "0.12.15", features = ["json"] }
+env_logger = "0.11.1"
+chrono = { version = "0.4.24", features = ["serde"] }
+
+# Ottimizzazioni per il deploy
+[profile.release]
+# * Abilita la Link-Time Optimization (LTO).
+# * LTO esegue ottimizzazioni sull'intero programma in fase di linking,
+# * portando potenzialmente a prestazioni migliori ma tempi di compilazione più lunghi.
+lto = true 
+# * Riduce il numero di codegen units a 1.
+# * Un numero inferiore di codegen units può migliorare l'ottimizzazione
+# * ma potrebbe aumentare i tempi di compilazione.
+codegen-units = 1 
+# * Configura il comportamento quando si verifica un panic.
+# * Invece di fare l'unwind dello stack, il programma si interromperà immediatamente,
+# * riducendo la dimensione del binario e migliorando le prestazioni in scenari di panic.
+panic = 'abort' 
+# * Rimuove i simboli di debug dal binario finale, riducendone la dimensione.
+# * Questo è generalmente desiderabile per le build di release.
+strip = true 

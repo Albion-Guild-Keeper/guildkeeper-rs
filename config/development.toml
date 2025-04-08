@@ -1,0 +1,20 @@
+log_level = "debug"
+
+# Corrisponde al campo 'server: ServerSettings'
+[server]
+host = "127.0.0.1"
+port = 8080
+
+# Corrisponde al campo 'database: DatabaseSettings'
+[database]
+url = "wss://magnetic-rail-06akp389stprh9se8brkar7b1k.aws-euw1.surreal.cloud" 
+username = "root" 
+password = "root" # @todo Caricare da env var in produzione!
+namespace = "root"
+database_name = "root"
+
+# Corrisponde al campo 'discord_oauth: DiscordOauthSettings'
+[discord_oauth]
+client_id = "1248308695323115543"
+client_secret = "cPfUKfkevfkd2MocLVwR9BDpB2X7-034" # @todo Caricare da env var in produzione!
+redirect_uri = "http://localhost:8010/api/v1/auth/callback"

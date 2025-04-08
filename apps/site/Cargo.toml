@@ -1,0 +1,30 @@
+[package]
+name = "site"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# From Workspace
+serde = { workspace = true }
+serde_json = { workspace = true} 
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber =  { workspace = true }
+config = { workspace = true }
+validator ={ workspace = true }
+reqwest = { workspace = true }
+
+# Only for this
+sycamore = { version = "0.9.1", features = ["suspense"] } 
+sycamore-router = "0.9.1" 
+sycamore-web = "0.9.1" 
+sycamore-core = "0.9.1"
+sycamore-futures = "0.9.1"
+sycamore-macro = "0.9.1"
+sycamore-reactive = "0.9.1"
+sycamore-router-macro = "0.9.1"
+
+# From Libs
+core_lib = { path = "../../libs/core" }
+sycamore-rstml = { path = "../../libs/sycamore_rstml" }

@@ -1,0 +1,26 @@
+[package]
+name = "bot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# From Workspace
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+config = { workspace = true }
+validator = { workspace = true }
+reqwest = { workspace = true }
+
+# Only for this
+tokio = "1.44.2"
+serenity = "0.12.4"
+shuttle-actix-web = "0.53.0"
+shuttle-runtime = "0.53.0"
+shuttle-serenity = "0.53.0"
+
+# From Libs
+core_lib = { path = "../../libs/core" }

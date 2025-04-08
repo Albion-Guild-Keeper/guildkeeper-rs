@@ -1,0 +1,5 @@
+apps/bot/Secrets.toml
+apps/api/Config.toml
+/target/*
+Cargo.lock
+.env

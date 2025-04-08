@@ -1,0 +1,15 @@
+[log]
+log_level = "warn"
+
+[database]
+url = "postgres://user:pass@prod-db.example.com/mydb"
+max_connections = 100
+
+[server]
+host = "0.0.0.0"
+
+[bot]
+token = "ABC123XYZ_PROD_BOT_TOKEN"
+
+[cli]
+verbose_output = true
