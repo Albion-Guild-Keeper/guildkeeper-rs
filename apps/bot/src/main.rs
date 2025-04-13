@@ -2,13 +2,9 @@ use anyhow::Context as _;
 use serenity::prelude::*;
 use shuttle_runtime::SecretStore;
 use std::env;
+use tracing::info;
 
-mod commands;
-mod api;
-mod models;
-mod handlers;
-mod utils;
-
+mod features;
 
 #[shuttle_runtime::main]
 async fn serenity(
@@ -20,8 +16,10 @@ async fn serenity(
 
     let intents = GatewayIntents::all();
 
-    let client = Client::builder(&token, intents)
-        .event_handler(handlers::Handler)
+    info!("Starting bot with token: {}", token);
+
+    let client = Client::builder(token, intents)
+        .event_handler(features::handlers::Handler)
         .await
         .expect("Error creating client");
 

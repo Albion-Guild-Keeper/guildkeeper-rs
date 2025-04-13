@@ -24,7 +24,9 @@ sycamore-futures = "0.9.1"
 sycamore-macro = "0.9.1"
 sycamore-reactive = "0.9.1"
 sycamore-router-macro = "0.9.1"
+wasm-logger = "0.2.0"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 
 # From Libs
-core_lib = { path = "../../libs/core" }
 sycamore-rstml = { path = "../../libs/sycamore_rstml" }

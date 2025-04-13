@@ -5,7 +5,6 @@ use std::env;
 
 use core_lib::config_models::DatabaseSettings;
 
-// Definisci le struct specifiche SOLO per l'API qui
 #[derive(Debug, Deserialize, Clone)]
 pub struct ServerSettings {
     pub port: u16,
@@ -15,25 +14,21 @@ pub struct ServerSettings {
 #[derive(Debug, Deserialize, Clone)]
 pub struct DiscordOauthSettings {
     pub client_id: String,
-    pub client_secret: String, // SECRET! Caricato da Env Var
+    pub client_secret: String, 
     pub redirect_uri: String,
 }
 
-// Definisci la struct COMPLETA per l'API
 #[derive(Debug, Deserialize, Clone)]
 pub struct Settings {
-    // Usa il tipo condiviso per il database
     pub database: DatabaseSettings,
-
-    // Usa i tipi specifici definiti sopra
     pub server: ServerSettings,
     pub discord_oauth: DiscordOauthSettings,
-
-    // Altri campi specifici dell'API
-    pub log_level: String,  // Anche se comune, la leggiamo qui
-    pub jwt_secret: String, // SECRET! Caricato da Env Var
-    pub jwt_duration_hours: Option<i64>, // Opzionale, default 1 ora
-    pub cookie_secret: String, // SECRET! Caricato da Env Var
+    pub log_level: String, 
+    pub jwt_secret: String,
+    pub jwt_expiration_hours: Option<i64>,
+    pub cookie_jwt_name: String, 
+    pub cookie_secret: String, 
+    pub bot_api_key: String,
 }
 
 pub fn load() -> Result<Settings, ConfigError> {

@@ -1,12 +1,11 @@
 // IN: apps/rest_api/src/features/auth/service.rs
 use crate::{config::{DiscordOauthSettings, Settings}, features::auth::{client, dto::Claims}};
 use chrono::{Duration, Utc};
-use core_lib::{models::user::User, persistence::user_repo, CoreError};
+use core_lib::{models::account::{self, Account}, persistence::{account_repo, discord_repo::get_discord_user_profile}, CoreError};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use surrealdb::{engine::any::Any, Surreal};
 use tracing::{debug, error, info, warn};
-// Assumendo che sia definita qui o importata
-use url::Url; // Usa la crate `url` per costruire URL correttamente
+use url::Url; 
 
 use core_lib::errors::Result as CoreResult;
 
@@ -51,7 +50,7 @@ pub async fn handle_discord_callback(
 
     // --- 2. Ottieni il profilo utente da Discord ---
     debug!("Fetching Discord user profile...");
-    let discord_user_profile = client::get_discord_user_profile(
+    let discord_user_profile = get_discord_user_profile(
         &discord_token_response.access_token
     ).await?; // Propaga CoreError se fallisce
     info!("Fetched Discord profile for User ID: {}", discord_user_profile.id);
@@ -59,75 +58,66 @@ pub async fn handle_discord_callback(
 
     // --- 3. Trova o Crea Utente nel TUO Database ---
     // Cerca l'utente tramite l'ID Discord
-    let existing_user = user_repo::find_by_discord_id(
+    let existing_account = account_repo::find_by_discord_id(
         db,
         &discord_user_profile.id
-    ).await?; // Propaga CoreError
+    ).await?;
 
-    let user_to_auth: User = match existing_user {
-        Some(mut user) => {
-            info!("Found existing user in local DB with ID: {}", user.id);
+    debug!("Searching for existing account in local DB...");
+
+    let account_to_auth: Account = match existing_account {
+        Some(mut account) => {
+            info!("Found existing user in local DB with ID: {}", account.id);
             // (Opzionale) Aggiorna info come username/avatar se cambiate su Discord
             let mut needs_update = false;
-            if user.username != discord_user_profile.username {
-                user.username = discord_user_profile.username.clone();
+            if account.username != discord_user_profile.username {
+                account.username = discord_user_profile.username.clone();
                 needs_update = true;
             }
             // Aggiungi controllo avatar, ecc.
             if needs_update {
-                 debug!("Updating user info from Discord profile...");
-                 match user_repo::update(db, &user).await {
-                     Ok(updated) => user = updated, // Usa l'utente aggiornato
-                     Err(e) => warn!("Failed to update user info for {}: {}", user.id, e), // Logga ma continua
+                 debug!("Updating account info from Discord profile...");
+                 match account_repo::update(db, &account).await {
+                     Ok(updated) => account = updated, // Usa l'utente aggiornato
+                     Err(e) => warn!("Failed to account user info for {}: {}", account.id, e), // Logga ma continua
                  }
             }
-            user // Usa l'utente esistente (eventualmente aggiornato)
+            account // Usa l'utente esistente (eventualmente aggiornato)
         }
         None => {
-            info!("User not found in local DB, creating new user for Discord ID: {}", discord_user_profile.id);
-            // Crea un nuovo utente
-            // Mappa i dati dal profilo Discord alla tua struct User
-            // Nota: Assicurati che la tua struct User possa essere creata in questo modo
-            //       Potrebbe servire una funzione `User::new_from_discord(...)`
-            let new_user_data = User {
-                // L'ID verrà generato da SurrealDB if not specified
-                id: User::default_id(), // O lascia che SurrealDB lo generi
+            info!("Account not found in local DB, creating new user for Discord ID: {}", discord_user_profile.id);
+            let new_account_data = Account {
+                id: Account::default_id(),
                 username: discord_user_profile.username.clone(),
                 email: discord_user_profile.email.clone(),
-                discord_id: Some(discord_user_profile.id),
+                discord_id: Some(discord_user_profile.id.parse::<i64>().unwrap()),
                 discord_avatar: discord_user_profile.avatar,
-                // Imposta altri campi di default se necessario (es. ruoli)
-                // roles: vec!["default_role".to_string()],
-                created_at: Utc::now(),
-                updated_at: Some(Utc::now()),
-                roles: vec!["default".to_string()], // Provide a default value for roles
+                locale: discord_user_profile.locale.clone(),
+                roles: vec!["default_role".to_string()], // @todo Aggiungi ruoli predefiniti con ENUM e poi verifiche varie
             };
 
-            match user_repo::create(db, new_user_data).await {
-                Ok(user) => user,
+            match account_repo::create(db, new_account_data).await {
+                Ok(account) => account,
                 Err(e) => {
-                    error!("Failed to create user: {}", e);
-                    return Err(e); // Propagate the error to the caller
+                    error!("Failed to create account: {}", e);
+                    return Err(e);
                 }
             }
         }
     };
 
-    info!("User authenticated/created successfully. Local User ID: {}", user_to_auth.id);
+    info!("Account authenticated/created successfully. Local Account ID: {}", account_to_auth.id);
 
 
     // --- 4. Genera il TUO Token JWT ---
-    debug!("Generating local JWT for user ID: {}", user_to_auth.id);
+    debug!("Generating local JWT for user ID: {}", account_to_auth.id);
     let now = Utc::now();
     // Imposta la scadenza (es. 1 ora) - prendi la durata dalla configurazione!
-    let expiration_time = now + Duration::hours(1); // Esempio: 1 ora
+    let expiration_time = now + Duration::hours(settings.jwt_expiration_hours.unwrap_or(1));
 
     let claims = Claims {
-        sub: user_to_auth.id.to_string(), // Usa l'ID del TUO utente come subject
+        sub: account_to_auth.id.to_string(), // Usa l'ID del TUO utente come subject
         exp: expiration_time.timestamp() as usize,
-        // Aggiungi altri claim se vuoi
-        // name: user_to_auth.username.clone(),
-        // roles: user_to_auth.roles.clone(),
     };
 
     // Usa la chiave segreta dalla configurazione
@@ -135,15 +125,13 @@ pub async fn handle_discord_callback(
     let token = encode(
         &Header::default(),
         &claims,
-        &EncodingKey::from_secret("your_jwt_secret_key".as_bytes()) // Usa il segreto dalla config
+        &EncodingKey::from_secret(settings.jwt_secret.as_ref()) // Usa il segreto dalla config
     ).map_err(|e| {
         error!("Failed to encode JWT: {}", e);
         CoreError::Internal("Failed to generate authentication token".to_string())
     })?;
 
-    error!("JWT generated: {}", token); // Logga il token (non farlo in produzione!)
-
-    info!("JWT generated successfully for user ID: {}", user_to_auth.id);
+    info!("JWT generated successfully for user ID: {}", account_to_auth.id);
 
     // --- 5. Restituisci il TUO token JWT ---
     Ok(token)

@@ -1,23 +1,23 @@
 // IN: apps/rest_api/src/features/auth/handler.rs
 use super::service;
-use crate::{errors::ApiError, features::auth::dto::LoginResponse};
 use crate::state::AppState;
+use crate::{errors::ApiError, features::auth::dto::LoginResponse};
 use actix_session::Session;
-use actix_web::{get, web, HttpResponse, Responder, Result as ActixResult};
+use actix_web::{delete, get, post, web, HttpResponse, Responder, Result as ActixResult};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as base64_url, Engine as _};
-use rand::Rng; 
-use tracing::{debug, error, info, warn}; 
+use rand::Rng;
+use tracing::{debug, error, info, warn};
 
 const OAUTH_STATE_KEY: &str = "oauth_state"; // @todo spostare in un file di configurazione
 
 #[utoipa::path(/* ... */)]
-#[get("/login")]
+#[get("/login")] //@todo //! da cambiare in POST é GET solo per TEST
 pub async fn discord_login_handler(
     state: web::Data<AppState>,
     session: Session,
 ) -> ActixResult<impl Responder, ApiError> {
     let mut rng = rand::rng();
-    let csrf_bytes: [u8; 32] = rng.random(); 
+    let csrf_bytes: [u8; 32] = rng.random();
     let csrf_state = base64_url.encode(csrf_bytes);
 
     session.insert(OAUTH_STATE_KEY, &csrf_state).map_err(|e| {
@@ -27,14 +27,13 @@ pub async fn discord_login_handler(
 
     debug!("Generated and saved CSRF state: {}", csrf_state);
 
-    let redirect_url = service::generate_discord_auth_url(
-        &state.settings.discord_oauth,
-        &csrf_state,
-    )
-    .map_err(|e| {
-        error!("Failed to generate Discord auth URL: {}", e);
-        ApiError::InternalServer("Failed to build redirect URL".to_string())
-    })?;
+    let redirect_url =
+        service::generate_discord_auth_url(&state.settings.discord_oauth, &csrf_state).map_err(
+            |e| {
+                error!("Failed to generate Discord auth URL: {}", e);
+                ApiError::InternalServer("Failed to build redirect URL".to_string())
+            },
+        )?;
 
     // 4. Reindirizza l'utente
     Ok(HttpResponse::Found()
@@ -76,14 +75,14 @@ pub async fn discord_callback_handler(
         }
     }
 
-        // 2. Chiama il servizio per scambiare codice, ottenere utente, generare JWT locale
+    // 2. Chiama il servizio per scambiare codice, ottenere utente, generare JWT locale
     //    Passa le parti necessarie dallo stato (db, settings)
     let handle_result = service::handle_discord_callback(
         &query.code,
         &state.db,       // Passa riferimento alla connessione DB
         &state.settings, // Passa riferimento alle Settings (che sono dentro Arc)
-    ).await; // Il servizio ritorna CoreResult<String>
-
+    )
+    .await; // Il servizio ritorna CoreResult<String>
 
     // 3. Gestisci il risultato del servizio
     match handle_result {
@@ -92,12 +91,22 @@ pub async fn discord_callback_handler(
             info!("Successfully handled Discord callback and generated local JWT.");
             // Costruisci il corpo della risposta JSON usando il DTO LoginResponse
             let response_body = LoginResponse {
-                access_token: local_jwt,
+                access_token: local_jwt.clone(),
                 token_type: "Bearer".to_string(),
             };
+
+            // Crea un cookie per memorizzare il JWT
+            let cookie =
+                actix_web::cookie::Cookie::build(&state.settings.cookie_jwt_name, local_jwt)
+                    .path("/") // Definisci il percorso in cui il cookie è valido
+                    .secure(true) // Imposta il flag Secure se necessario (HTTPS)
+                    .http_only(true) // Impedisce l'accesso al cookie tramite JavaScript
+                    .finish();
+
+            // Inserisci il cookie nella risposta
             // Restituisci una risposta HTTP 200 OK con il corpo JSON
             // Ok() qui si riferisce al Result di ActixResult, non al match
-            Ok(HttpResponse::Ok().json(response_body))
+            Ok(HttpResponse::Ok().cookie(cookie).json(response_body))
         }
 
         // --- Caso di Errore: Il servizio ha restituito un CoreError ---
@@ -118,3 +127,25 @@ pub async fn discord_callback_handler(
         }
     }
 } // Fine di discord_callback_handler
+
+#[utoipa::path(/* ... */)]
+#[delete("/logout")]
+pub async fn discord_logout_handler(
+    session: Session,
+    state: web::Data<AppState>,
+) -> ActixResult<impl Responder, ApiError> {
+    // Rimuovi la sessione dell'utente
+    session.purge(); // Pulisce la sessione corrente
+    debug!("User session purged successfully");
+
+    // Cancella il cookie jwt_token
+    let cookie = actix_web::cookie::Cookie::build(&state.settings.cookie_jwt_name, "")
+        .path("/")
+        .max_age(actix_web::cookie::time::Duration::seconds(0)) // Imposta Max-Age=0 per eliminarlo
+        .secure(true) // Imposta il flag Secure se necessario (HTTPS)
+        .http_only(true)
+        .finish();
+
+    // Imposta il cookie con Max-Age=0 per eliminarlo
+    Ok(HttpResponse::Ok().cookie(cookie).body("Logged out"))
+}

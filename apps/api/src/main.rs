@@ -1,5 +1,5 @@
 use actix_session::{SessionMiddleware, storage::CookieSessionStore};
-use actix_web::{web::{self, scope, Data}, cookie::Key}; // Import Key
+use actix_web::{web::{self, scope, Data}, cookie::Key, App, HttpServer}; // Import Key, App, HttpServer
 use state::AppState;
 use tracing::info;
 use std::sync::Arc;
@@ -10,7 +10,7 @@ mod config;
 mod errors;
 mod features;
 mod state;
-mod middleware; 
+mod middleware;
 
 use core_lib::persistence::db::create_surreal_connection;
 
@@ -21,15 +21,17 @@ use core_lib::persistence::db::create_surreal_connection;
     paths(
         features::auth::handler::discord_login_handler,
         features::auth::handler::discord_callback_handler,
-        features::users::handler::create_user_handler,
-        features::users::handler::get_user_handler,
+        features::auth::handler::discord_logout_handler,
+        features::accounts::handler::get_current_account_handler,
+        features::guilds::handler::get_guildlist,
+        features::users::handler::guild_member_addition_handler,
         // ... aggiungi TUTTI gli altri handler dell'API ...
     ),
     // Elenca TUTTI i componenti (DTO, risposte, parametri) annotati con #[derive(ToSchema/IntoParams)]
     components(
         schemas(
             features::auth::dto::LoginResponse,
-            features::auth::dto::ErrorResponse, 
+            features::auth::dto::ErrorResponse,
         ),
         // Puoi definire risposte riutilizzabili qui se vuoi
         // responses( ... )
@@ -80,22 +82,14 @@ async fn actix_web(// Inietta risorse Shuttle se necessario, es:
         .expect("Failed to connect to database"); // Use a more descriptive panic message
 
     let app_state = AppState {
-        db: db_connection, // O usa `db` iniettata
-        settings: Arc::new(settings.clone()), // Clone settings here for app_state
+        db: db_connection, 
+        settings: Arc::new(settings.clone()), 
     };
 
-    // Create the Key from the secret string before the move closure
-    // Ensure the secret is not empty before attempting to create the key
     if settings.cookie_secret.is_empty() {
-        // Using panic here as a non-recoverable error during startup
         panic!("FATAL: COOKIE_SECRET environment variable not set or empty.");
     }
-    // Log the length, not the secret itself for security
     info!("Using cookie secret with length: {}", settings.cookie_secret.len());
-    // Use derive_from for potentially arbitrary length secrets.
-    // This performs key derivation (like PBKDF2) and is suitable for passphrases.
-    // If your secret is already a cryptographically secure key of exactly 64 bytes,
-    // Key::from() would be slightly more direct, but derive_from is safer otherwise.
     let session_key = Key::derive_from(settings.cookie_secret.as_bytes());
 
     // Costruisci la configurazione delle route passando lo stato
@@ -112,7 +106,7 @@ async fn actix_web(// Inietta risorse Shuttle se necessario, es:
                     .cookie_secure(true) // In Shuttle dovresti sempre usare HTTPS
                     .cookie_http_only(true)
                     .cookie_same_site(actix_web::cookie::SameSite::Lax) // Considera `cookie_domain` se hai un dominio custom con Shuttle
-                    .build()
+                    .build() 
                 )
                 .configure(features::register_routes), // Assumi che questo registri anche SwaggerUI e OpenAPI JSON
             );

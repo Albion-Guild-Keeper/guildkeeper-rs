@@ -32,7 +32,7 @@ where
 {
     type Response = ServiceResponse<B>;
     type Error = ActixError;
-    type InitError = ();
+    type InitError = (); 
     type Transform = AuthenticationMiddleware<S>;
     type Future = Ready<Result<Self::Transform, Self::InitError>>;
 
@@ -54,8 +54,8 @@ pub struct AuthenticationMiddleware<S> {
 // Struct per contenere l'ID utente estratto dal token (opzionale ma utile)
 // Lo aggiungeremo alle estensioni della richiesta per gli handler successivi
 #[derive(Clone)]
-pub struct AuthenticatedUser {
-    pub user_id: String, // O uuid::Uuid se usi UUID come ID
+pub struct AuthenticatedAccount {
+    pub account_id: String, // O uuid::Uuid se usi UUID come ID
 }
 
 // Implementa Service per il middleware
@@ -94,6 +94,10 @@ where
             }
             let state = state.unwrap(); // Ora abbiamo web::Data<AppState>
             let jwt_secret = state.settings.jwt_secret.clone(); // Clona il segreto JWT
+            warn!(
+                "JWT secret loaded from settings: {}",
+                jwt_secret // Logga il segreto per debug (NON in produzione!)
+            );
 
             // 2. Estrai l'header Authorization
             let auth_header = req.headers().get(AUTHORIZATION);
@@ -103,6 +107,10 @@ where
                     // Prova a estrarre il token "Bearer <token>"
                     if let Ok(header_str) = header_value.to_str() {
                         if header_str.starts_with("Bearer ") {
+                            debug!(
+                                "Authorization header found: {}",
+                                header_str // Logga l'header completo per debug
+                            );
                             Some(header_str[7..].to_string()) // Estrai solo il token
                         } else {
                             None // Formato header non corretto
@@ -111,7 +119,16 @@ where
                         None // Header non è stringa UTF-8 valida
                     }
                 }
-                None => None, // Header non presente
+                None => {
+                    // Prova a leggere il token dai cookie
+                    if let Some(cookie) = req.cookie(state.settings.cookie_jwt_name.as_str()) {	
+                        debug!("JWT token found in cookie");
+                        Some(cookie.value().to_string())
+                    } else {
+                        warn!("Authorization header missing and no JWT token found in cookies.");
+                        None // Header non presente e cookie non trovato
+                    }
+                }
             };
 
             // 3. Valida il Token (se presente)
@@ -129,7 +146,7 @@ where
                     match decode::<Claims>(&token_str, &decoding_key, &validation) {
                         Ok(token_data) => {
                             debug!(
-                                "JWT validation successful. User ID: {}",
+                                "JWT validation successful. Account ID: {}",
                                 token_data.claims.sub
                             );
                             // --- Token Valido ---
@@ -138,11 +155,17 @@ where
 
                             // (Opzionale ma utile) Inserisci l'utente autenticato
                             // nelle estensioni della richiesta per gli handler successivi
-                            let authenticated_user = AuthenticatedUser { user_id };
+                            let authenticated_user = AuthenticatedAccount { account_id: user_id };
                             req.extensions_mut().insert(authenticated_user);
+
+                            debug!("Authenticated user ID inserted into request extensions");
 
                             // Chiama il servizio successivo nella catena
                             let fut = service.call(req);
+
+                            // The status method does not exist on the future.
+                            // If you need the response status, log it after awaiting the future.
+
                             fut.await
                         }
                         Err(e) => {

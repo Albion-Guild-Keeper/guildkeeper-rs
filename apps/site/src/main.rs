@@ -1,5 +1,12 @@
+use app::router::App;
+
+mod app;
+mod features;
+mod services;
+mod errors;
+mod models;
+
 fn main() {
-    // This is a placeholder for the main function.
-    // The actual implementation would go here.
-    println!("Hello, world!");
+    sycamore::render(App);
+    tracing::info!("Starting application...");
 }

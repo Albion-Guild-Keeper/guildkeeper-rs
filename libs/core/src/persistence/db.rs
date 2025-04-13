@@ -2,6 +2,7 @@
 use crate::config_models::DatabaseSettings; 
 use crate::errors::{CoreError, Result};
 use surrealdb::engine::any::{self, Any}; 
+use surrealdb::opt::auth::Root;
 use surrealdb::Surreal;
 use tracing::info;
 
@@ -21,14 +22,14 @@ pub async fn create_surreal_connection(settings: &DatabaseSettings) -> Result<Su
     }
 
     // @todo Aggiungi qui la logica di autenticazione se necessaria
-    // if let (Some(user), Some(pass)) = (&settings.username, &settings.password) {
-    //     db.signin(Root {
-    //         username: user,
-    //         password: pass,
-    //         // ... altri campi per l'auth scope se servono
-    //     }).await.map_err(|e| CoreError::DatabaseAuth(e.to_string()))?;
-    //     info!("Signed in to SurrealDB successfully");
-    // }
+    if let (Some(user), Some(pass)) = (&settings.username, &settings.password) {
+        db.signin(Root {
+            username: user,
+            password: pass,
+            // ... altri campi per l'auth scope se servono
+        }).await.map_err(|e| CoreError::DatabaseAuth(e.to_string()))?;
+        info!("Signed in to SurrealDB successfully");
+    }
 
     Ok(db)
 }

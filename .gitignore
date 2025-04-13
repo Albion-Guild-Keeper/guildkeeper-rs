@@ -3,3 +3,5 @@ apps/api/Config.toml
 /target/*
 Cargo.lock
 .env
+.templates/
+.vscode/
