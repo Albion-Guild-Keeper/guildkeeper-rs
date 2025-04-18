@@ -15,7 +15,7 @@ use crate::{errors::ApiError, middleware::auth::AuthenticatedAccount, state::App
     ),
     tags = ["Guilds"]
 )]
-#[get("/guilds/@me")]
+#[get("/@me")]
 pub async fn get_guildlist(
     req: actix_web::HttpRequest, 
     state: web::Data<AppState>,

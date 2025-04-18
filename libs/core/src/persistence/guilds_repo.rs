@@ -12,8 +12,8 @@ pub async fn find_by_account_id(db: &Surreal<Any>, account_id: &str) -> Result<V
 
     let query = r#"
         SELECT guilds.*
-        FROM type::table($table) AS guilds
-        LET user = (SELECT * FROM users WHERE <-connected<-accounts WHERE discord_id = $account_id)
+        FROM type::table($table),
+        (SELECT * FROM users WHERE <-connected<-accounts WHERE discord_id = $account_id)
         WHERE guilds.id IN (SELECT ->joined->guilds.id FROM user)
     "#;
     let mut result = db.query(query)

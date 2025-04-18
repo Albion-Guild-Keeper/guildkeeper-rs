@@ -7,6 +7,12 @@ pub struct CallbackQuery {
     pub state: String,
 }
 
+#[derive(Deserialize, ToSchema)]
+pub struct LoginQuery {
+    #[schema(example = "/profile")]
+    pub last_page: String,
+}
+
 #[derive(Serialize, ToSchema)]
 pub struct LoginResponse {
     #[schema(example = "ey...")]

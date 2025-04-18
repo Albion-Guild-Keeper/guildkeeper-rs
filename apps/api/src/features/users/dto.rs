@@ -1,9 +1,18 @@
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 
+
+#[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
+#[schema(description = "Represents a request to create a user into guild.")]
+pub struct CreateUserQuery {
+    pub guild_id: String,
+}
+
+
 #[derive(Serialize, Deserialize, ToSchema, Debug, Clone)]
 #[schema(description = "Represents a request to add a guild member.")]
 pub struct GuildMemberAdditionQuery {
+    pub id: String,
     pub username: String,
 }
 

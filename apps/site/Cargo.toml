@@ -14,6 +14,7 @@ tracing-subscriber =  { workspace = true }
 config = { workspace = true }
 validator ={ workspace = true }
 reqwest = { workspace = true }
+log = { workspace = true }
 
 # Only for this
 sycamore = { version = "0.9.1", features = ["suspense"] } 

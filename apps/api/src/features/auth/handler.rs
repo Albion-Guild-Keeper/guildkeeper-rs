@@ -3,7 +3,7 @@ use super::service;
 use crate::state::AppState;
 use crate::{errors::ApiError, features::auth::dto::LoginResponse};
 use actix_session::Session;
-use actix_web::{delete, get, post, web, HttpResponse, Responder, Result as ActixResult};
+use actix_web::{delete, get, post, web, HttpRequest, HttpResponse, Responder, Result as ActixResult};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as base64_url, Engine as _};
 use rand::Rng;
 use tracing::{debug, error, info, warn};
@@ -13,12 +13,16 @@ const OAUTH_STATE_KEY: &str = "oauth_state"; // @todo spostare in un file di con
 #[utoipa::path(/* ... */)]
 #[get("/login")] //@todo //! da cambiare in POST é GET solo per TEST
 pub async fn discord_login_handler(
+    query: web::Query<super::dto::LoginQuery>,
     state: web::Data<AppState>,
     session: Session,
 ) -> ActixResult<impl Responder, ApiError> {
     let mut rng = rand::rng();
     let csrf_bytes: [u8; 32] = rng.random();
     let csrf_state = base64_url.encode(csrf_bytes);
+    let last_page = query.last_page.clone();
+
+    debug!("Last page to redirect after login: {}", last_page);
 
     session.insert(OAUTH_STATE_KEY, &csrf_state).map_err(|e| {
         error!("Failed to insert CSRF state into session: {}", e);
@@ -35,8 +39,15 @@ pub async fn discord_login_handler(
             },
         )?;
 
+    let cookie = actix_web::cookie::Cookie::build("last_page", last_page)
+        .path("/") // Definisci il percorso in cui il cookie è valido
+        // .secure(true) Imposta il flag Secure se necessario (HTTPS)
+        .http_only(true) // Impedisce l'accesso al cookie tramite JavaScript
+        .finish();
+
     // 4. Reindirizza l'utente
     Ok(HttpResponse::Found()
+        .cookie(cookie) 
         .append_header(("Location", redirect_url))
         .finish())
 }
@@ -44,6 +55,7 @@ pub async fn discord_login_handler(
 #[utoipa::path(/* ... */)]
 #[get("/callback")]
 pub async fn discord_callback_handler(
+    req: HttpRequest,
     query: web::Query<super::dto::CallbackQuery>,
     state: web::Data<AppState>,
     session: Session,
@@ -90,7 +102,7 @@ pub async fn discord_callback_handler(
         Ok(local_jwt) => {
             info!("Successfully handled Discord callback and generated local JWT.");
             // Costruisci il corpo della risposta JSON usando il DTO LoginResponse
-            let response_body = LoginResponse {
+            let _response_body = LoginResponse {
                 access_token: local_jwt.clone(),
                 token_type: "Bearer".to_string(),
             };
@@ -99,15 +111,30 @@ pub async fn discord_callback_handler(
             let cookie =
                 actix_web::cookie::Cookie::build(&state.settings.cookie_jwt_name, local_jwt)
                     .path("/") // Definisci il percorso in cui il cookie è valido
-                    .secure(true) // Imposta il flag Secure se necessario (HTTPS)
+                    // .secure(true) // Imposta il flag Secure se necessario (HTTPS)
                     .http_only(true) // Impedisce l'accesso al cookie tramite JavaScript
                     .finish();
 
+            let mut last_page: Option<String> = req.cookie("last_page").map(|c| c.value().to_string());
+
+            if last_page.as_deref() == Some("Main") {
+                last_page = Some("".to_string()); // Se l'ultima pagina è "main", reindirizza alla home page
+            }
+
+            req.cookie("last_page").take(); // Rimuovi il cookie last_page
+
+            let redirect_url = format!("http://localhost:8080/{}", last_page.unwrap_or_else(|| "".to_string()).to_lowercase());
+
+            debug!("Redirecting to: {}", redirect_url);
+
             // Inserisci il cookie nella risposta
             // Restituisci una risposta HTTP 200 OK con il corpo JSON
-            // Ok() qui si riferisce al Result di ActixResult, non al match
-            Ok(HttpResponse::Ok().cookie(cookie).json(response_body))
+            Ok(HttpResponse::Found()
+                .cookie(cookie) // Allega il cookie alla risposta di reindirizzamento
+                .append_header(("Location", redirect_url)) // Imposta l'URL di reindirizzamento
+                .finish())
         }
+
 
         // --- Caso di Errore: Il servizio ha restituito un CoreError ---
         Err(core_error) => {
@@ -142,7 +169,7 @@ pub async fn discord_logout_handler(
     let cookie = actix_web::cookie::Cookie::build(&state.settings.cookie_jwt_name, "")
         .path("/")
         .max_age(actix_web::cookie::time::Duration::seconds(0)) // Imposta Max-Age=0 per eliminarlo
-        .secure(true) // Imposta il flag Secure se necessario (HTTPS)
+        // .secure(true) // Imposta il flag Secure se necessario (HTTPS)
         .http_only(true)
         .finish();
 

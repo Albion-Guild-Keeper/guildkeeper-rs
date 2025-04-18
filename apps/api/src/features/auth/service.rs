@@ -1,7 +1,7 @@
 // IN: apps/rest_api/src/features/auth/service.rs
-use crate::{config::{DiscordOauthSettings, Settings}, features::auth::{client, dto::Claims}};
+use crate::{config::{DiscordOauthSettings, Settings}, features::{auth::{client, dto::Claims}, users}};
 use chrono::{Duration, Utc};
-use core_lib::{models::account::{self, Account}, persistence::{account_repo, discord_repo::get_discord_user_profile}, CoreError};
+use core_lib::{models::account::{self, Account}, persistence::{account_repo, discord_repo::get_discord_user_profile, users_repo}, CoreError};
 use jsonwebtoken::{encode, EncodingKey, Header};
 use surrealdb::{engine::any::Any, Surreal};
 use tracing::{debug, error, info, warn};
@@ -21,11 +21,8 @@ pub fn generate_discord_auth_url(
         .append_pair("redirect_uri", &oauth_settings.redirect_uri)
         .append_pair("response_type", "code")
         // Aggiungi gli scope necessari separati da spazio (codificati correttamente da `url`)
-        .append_pair("scope", "identify email guilds") // Esempio scope
+        .append_pair("scope", "identify email guilds guilds.join guilds.members.read") // Esempio scope
         .append_pair("state", csrf_state); // <<< USA LO STATE QUI
-
-    // (Opzionale) Aggiungi prompt=none se vuoi tentare un login silenzioso
-    // .append_pair("prompt", "none");
 
     Ok(auth_url.to_string())
 }
@@ -97,7 +94,20 @@ pub async fn handle_discord_callback(
             };
 
             match account_repo::create(db, new_account_data).await {
-                Ok(account) => account,
+                Ok(account) => {
+                    // Search for users with same discord_id to relate with
+
+                    let discord_id = account.discord_id.unwrap_or_default().to_string();
+
+                    let users = users_repo::find_by_discord_id(db, &discord_id).await?;
+
+                    for user in users {
+                        let relation = users_repo::relate_account_user(db, &user.id.to_string(), &account.id.to_string()).await?;
+                        debug!("User {} related to account {}: {:?}", user.id, account.id, relation);
+                    }
+
+                    account
+                },
                 Err(e) => {
                     error!("Failed to create account: {}", e);
                     return Err(e);

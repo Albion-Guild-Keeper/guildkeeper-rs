@@ -53,10 +53,8 @@ pub async fn get_current_account_handler(
 
         match core_lib::persistence::account_repo::find_by_id(&state.db, &record_id).await {
             Ok(Some(account)) => {
-                info!("Account found in DB: {:?}", account);
-                // Converti in DTO e restituisci
                 let response_dto = accounts::dto::AccountResponse::from(account);
-                info!("AccountResponse DTO: {:?}", response_dto);
+                debug!("AccountResponse DTO: {:?}", response_dto);
                 Ok(HttpResponse::Ok().json(response_dto))
             }
             Ok(None) => {

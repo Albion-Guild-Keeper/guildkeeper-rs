@@ -120,6 +120,7 @@ where
                     }
                 }
                 None => {
+                    debug!("Authorization header not found: {:#?}", req.cookies());
                     // Prova a leggere il token dai cookie
                     if let Some(cookie) = req.cookie(state.settings.cookie_jwt_name.as_str()) {	
                         debug!("JWT token found in cookie");

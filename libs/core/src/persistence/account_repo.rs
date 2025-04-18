@@ -50,7 +50,7 @@ pub async fn delete(db: &Surreal<Any>, id: &RecordId) -> Result<Option<Account>>
 pub async fn find_by_discord_id(db: &Surreal<Any>, discord_id: &str) -> Result<Option<Account>> {
     debug!(discord_id = %discord_id, "Attempting to find account by discord_id");
 
-    let query = "SELECT * FROM type::table($table) WHERE discord_id = $discord_id LIMIT 1;";
+    let query = "SELECT * FROM type::table($table) WHERE discord_id = type::int($discord_id) LIMIT 1;";
     let mut result = db.query(query)
         .bind(("table", TABLE))
         .bind(("discord_id", discord_id.to_string()))
@@ -78,3 +78,18 @@ pub async fn find_by_id(db: &Surreal<Any>, id: &RecordId) -> Result<Option<Accou
     }
     Ok(account)
 }
+
+pub async fn relate_to_users(
+    db: &Surreal<Any>,
+    account_id: &RecordId,
+    user_ids: &[RecordId],
+) -> Result<()> {
+    debug!(account_id = %account_id, "Relating account to users");
+
+    let query = "UPDATE type::table($table) SET users = $user_ids WHERE id = $account_id;";
+    
+    Ok(())
+}
+
+
+

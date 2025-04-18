@@ -21,6 +21,8 @@ pub async fn get_discord_user_profile(access_token: &str) -> CoreResult<DiscordU
     let client = Client::new();
     let user_endpoint = "https://discord.com/api/v10/users/@me";
 
+    debug!("Access Token: {}", access_token);
+
     let response = client
         .get(user_endpoint)
         .bearer_auth(access_token) // Usa il token nell'header Authorization: Bearer
