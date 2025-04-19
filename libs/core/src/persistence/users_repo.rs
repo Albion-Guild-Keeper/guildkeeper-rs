@@ -1,5 +1,5 @@
 use crate::errors::{CoreError, Result};
-use crate::models::user::{FindRelUserIdGuildId, Guild, GuildsList, User};
+use crate::models::user::{FindRelUserIdGuildId, Guild, GuildIdWrap, GuildsList, User};
 use surrealdb::engine::any::Any;
 use surrealdb::Surreal;
 use tracing::{debug, error, info, warn};
@@ -56,7 +56,7 @@ pub async fn relate_account_user(db: &Surreal<Any>, user_id: &str, account_id: &
     Ok(())
 }
 
-pub async fn get_guilds_by_account_id(db: &Surreal<Any>, account_id: &str) -> Result<Vec<GuildsList>> {
+pub async fn get_guilds_by_account_id(db: &Surreal<Any>, account_id: &str) -> Result<Vec<Guild>> {
     debug!(account_id = ?account_id, "Finding guilds by account ID");
 
     let query = "
@@ -69,9 +69,16 @@ pub async fn get_guilds_by_account_id(db: &Surreal<Any>, account_id: &str) -> Re
         .bind(("account_id", account_id.to_string()))
         .await?;
 
-    let guilds: Vec<GuildsList> = result.take(0)?;
+    // The query returns a Vec<GuildsList>, where GuildsList has a field `guilds: Vec<Guild>`
+    let guilds_lists: Vec<GuildsList> = result.take(0)?;
 
-    Ok(guilds)
+    // Flatten all guilds into a single Vec<Guild>
+    let all_guilds = guilds_lists
+        .into_iter()
+        .flat_map(|entry| entry.guilds)
+        .collect();
+
+    Ok(all_guilds)
 }
 
 // NOTE: This function now expects FindRelUserIdGuildId to contain Vec<RecordId> directly.

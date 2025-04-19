@@ -46,23 +46,18 @@ pub async fn get_user_guilds(
             };
 
 
-        let users_result = core_lib::persistence::users_repo::get_guilds_by_account_id(&state.db, account_id.to_string().as_str()).await;
+        let guilds_result = core_lib::persistence::users_repo::get_guilds_by_account_id(&state.db, account_id.to_string().as_str()).await;
 
-        match users_result {
-            std::result::Result::Ok(guilds) => {
-            if !guilds.is_empty() {
-                // Convert the guilds vector to JSON and return it
-                std::result::Result::Ok(HttpResponse::Ok().json(guilds))
-            } else {
-                debug!("No guilds found for the user.");
-                std::result::Result::Ok(HttpResponse::NotFound().body("No guilds found for the user."))
+        match guilds_result {
+            core::result::Result::Ok(guilds) => {
+                debug!("Guilds found: {:?}", guilds);
+                core::result::Result::Ok(HttpResponse::Ok().json(guilds))
             }
-            }
-            Err(e) => {
-            error!("Failed to fetch guilds: {}", e);
-            Err(ApiError::InternalServer(
-                "Failed to fetch guilds".to_string(),
-            ))
+            core::result::Result::Err(e) => {
+                error!("Error fetching guilds: {:?}", e);
+                Err(ApiError::InternalServer(
+                    "Error fetching guilds".to_string(),
+                ))
             }
         }
     } else {

@@ -1,10 +1,7 @@
-// IN: libs/core_lib/src/models/user.rs
-use chrono::{DateTime, Utc};
-use serde::{Serialize, Deserialize};
-use surrealdb::Number;
-use surrealdb::RecordId; // Per RecordId (es. "user:uuid()")
-use surrealdb::sql; // Per poter usare sql::Thing o altri tipi specifici se necessario
+use serde::{Deserialize, Serialize, Serializer};
 use std::str::FromStr;
+use surrealdb::sql;
+use surrealdb::RecordId;
 
 // La struct che rappresenta un utente nel nostro sistema e nel DB
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -85,7 +82,7 @@ pub struct GuildsList {
     pub guilds: Vec<Guild>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct Guild {
     pub id: RecordId,
     pub name: String,
@@ -94,4 +91,30 @@ pub struct Guild {
     pub applications_open: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+// Serializza l'id come stringa
+impl Serialize for Guild {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+        let mut s = serializer.serialize_struct("Guild", 7)?;
+        s.serialize_field("id", &self.id.to_string())?;
+        s.serialize_field("name", &self.name)?;
+        s.serialize_field("guild_id", &self.guild_id)?;
+        s.serialize_field("balance", &self.balance)?;
+        s.serialize_field("applications_open", &self.applications_open)?;
+        s.serialize_field("created_at", &self.created_at)?;
+        s.serialize_field("updated_at", &self.updated_at)?;
+        s.end()
+    }
+}
+
+// The query returns a Vec of objects with a field `guild_ids` which is a Vec of SurrealDB RecordId objects.
+// We'll flatten and extract only the inner id string.
+#[derive(Deserialize)]
+pub struct GuildIdWrap {
+    pub guild_ids: Vec<surrealdb::sql::Id>,
 }
